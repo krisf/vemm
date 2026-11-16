@@ -38,18 +38,18 @@ async function run() {
     assert.strictEqual(favorites.load(storage, "machine-a"), null);
 
     assert.deepStrictEqual(menu.rows({ type: "movie" }), [], "No row without a rating key");
-    assert.deepStrictEqual(ids(menu.rows({ ratingKey: "1", type: "movie" })), ["play", "watched"]);
-    assert.deepStrictEqual(ids(menu.rows({ ratingKey: "1", type: "movie", viewCount: 1 })), ["play", "unwatched"]);
+    assert.deepStrictEqual(ids(menu.rows({ ratingKey: "1", type: "movie" })), ["play", "queue-next", "queue-add", "watched", "rate"]);
+    assert.deepStrictEqual(ids(menu.rows({ ratingKey: "1", type: "movie", viewCount: 1 })), ["play", "queue-next", "queue-add", "unwatched", "rate"]);
     var resumed = { ratingKey: "5", type: "episode", viewOffset: 9000, grandparentRatingKey: "3", parentRatingKey: "4" };
     assert.deepStrictEqual(ids(menu.rows(resumed, { deck: true, continueAction: "details" })),
-        ["play", "show", "season", "watched", "unwatched", "start", "remove"]);
+        ["play", "show", "season", "queue-next", "queue-add", "watched", "unwatched", "rate", "start", "remove"]);
     assert.deepStrictEqual(ids(menu.rows(resumed, { deck: true, continueAction: "play" })),
-        ["play", "details", "show", "season", "watched", "unwatched", "start", "remove"]);
+        ["play", "details", "show", "season", "queue-next", "queue-add", "watched", "unwatched", "rate", "start", "remove"]);
     assert.strictEqual(menu.rows(resumed)[0].label, "Resume");
     var firstIds = ids(menu.rows(resumed, { deck: true }));
     assert(["watched", "unwatched", "remove"].indexOf(firstIds[0]) === -1, "A write is never the default row");
     assert.deepStrictEqual(ids(menu.rows({ ratingKey: "7", type: "show", leafCount: 4, viewedLeafCount: 2 })),
-        ["play", "watched", "unwatched"]);
+        ["play", "watched", "unwatched", "rate"]);
     assert.deepStrictEqual(ids(menu.rows({ ratingKey: "8", type: "season", leafCount: 8, viewedLeafCount: 0 })),
         ["play", "watched"]);
     assert.strictEqual(menu.rows({ ratingKey: "7", type: "show", OnDeck: { Metadata: [

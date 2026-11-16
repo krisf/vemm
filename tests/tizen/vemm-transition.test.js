@@ -28,7 +28,8 @@ assert(fs.existsSync(path.join(app, "brand/vemm-mark.svg")), "The packaged vecto
 assert(fs.existsSync(path.join(root, "samsung/brand/vemm-app-icon.svg")), "The source app icon must exist");
 assert(fs.existsSync(path.join(root, "samsung/brand/vemm-wordmark.svg")), "The source wordmark must exist");
 assert(build.includes('PACKAGE_ID = "VemmTvApp0"'), "Vemm must use its separate package identity");
-assert(config.includes('id="VemmTvApp0.Vemm" package="VemmTvApp0"'));
+assert(config.includes('id="VemmFixApp.Vemm" package="VemmFixApp"'),
+    "the shipped manifest keeps the side-by-side identity");
 assert(api.includes('require("./product")'));
 assert(api.includes("product && product.name"));
 assert(!api.includes('"Media for Tizen"'), "Plex protocol identity must use the current display product");

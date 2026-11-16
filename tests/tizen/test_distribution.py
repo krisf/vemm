@@ -19,7 +19,10 @@ def load(name, path):
     return module
 
 
-build = load("samsung_build", ROOT / "samsung/build.py")
+# The side-by-side fork ships via samsung/build-fix.py (PACKAGE_ID=VemmFixApp); the
+# upstream samsung/build.py is kept verbatim for reference and cannot stage this repo's
+# side-by-side config.xml, so the shipping minter is the one under test.
+build = load("samsung_build_fix", ROOT / "samsung/build-fix.py")
 source = load("samsung_source", ROOT / "samsung/source_bundle.py")
 
 
@@ -29,7 +32,7 @@ class DistributionTests(unittest.TestCase):
             app = Path(tmp) / "app"
             build.stage(app, "0.2.7")
             config = (app / "config.xml").read_text()
-            self.assertIn('id="VemmTvApp0.Vemm" package="VemmTvApp0"', config)
+            self.assertIn('id="VemmFixApp.Vemm" package="VemmFixApp"', config)
             self.assertIn('version="0.2.7"', config)
             self.assertIn("<name>Vemm</name>", config)
             for name in ("LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md", "TRADEMARKS.md",

@@ -198,7 +198,17 @@ body.playing {
     color: #b5b5bd;
 }
 
+/* UIF-P1 (TV-UIFLOWS §1): the chapter the playhead is inside, read beside the clocks. */
+.playback-chapter {
+    margin: 0 16px;
+    color: #b5b5bd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .playback-progress {
+    position: relative;
     height: 4px;
     margin-bottom: 24px;
     background: rgba(255, 255, 255, 0.28);
@@ -213,6 +223,16 @@ body.playing {
     width: 0;
     height: 100%;
     background: #ffffff;
+}
+
+/* Chapter boundaries on the scrub track (UIF-P1): fixed spans positioned by percentage. */
+.chapter-tick {
+    position: absolute;
+    top: -2px;
+    width: 2px;
+    height: 8px;
+    background: #d2d2d7;
+    pointer-events: none;
 }
 
 .playback-controls {
@@ -265,13 +285,21 @@ body.playing {
 }
 
 /* Skip Intro / Skip Credits: a labelled pill, not an icon disc (LG skip_pill.rs). */
+/* Plex-style floating pill: lifted out of the transport row and anchored to the
+   bottom-left of the HUD, above the controls (owner request 2026-11-06). */
 .playback-controls .menu-control.skip-marker {
+    position: absolute;
+    left: 80px;
+    bottom: 136px;
     width: auto;
-    padding: 12px 32px;
+    padding: 14px 36px;
     border-radius: 36px;
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 600;
     white-space: nowrap;
+    background: rgba(255, 255, 255, 0.16);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    color: #ffffff;
 }
 
 .playback-controls .menu-control.skip-marker::before,
@@ -939,6 +967,14 @@ input:focus {
 .menu-icon-forward::before {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='%23f7fafc'%3E%3Cpath d='M2 5v22l14-11zM16 5v22l14-11z'/%3E%3C/svg%3E");
 }
+/* Skip-track glyphs for the transport row (owner request 2026-11-06): bar plus a
+   single triangle, matching the rewind/forward fill and viewBox. */
+.menu-icon-previous::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='%23f7fafc'%3E%3Crect x='6' y='5' width='3' height='22' rx='1'/%3E%3Cpath d='M27 5 12 16 27 27z'/%3E%3C/svg%3E");
+}
+.menu-icon-next-episode::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='%23f7fafc'%3E%3Cpath d='M5 5 20 16 5 27z'/%3E%3Crect x='23' y='5' width='3' height='22' rx='1'/%3E%3C/svg%3E");
+}
 
 .menu-icon-none::before {
     display: none;
@@ -1168,6 +1204,14 @@ input:focus {
     letter-spacing: 1px;
 }
 
+/* UIF-P2: the viewer's own star rating beside the badges. */
+.detail-rating {
+    margin-right: 10px;
+    color: #f5c518;
+    font-size: 20px;
+    font-weight: bold;
+}
+
 .detail-synopsis {
     display: -webkit-box;
     max-width: 820px;
@@ -1246,6 +1290,17 @@ input:focus {
 .detail-pill-watched:before { content: "\2713"; }
 .detail-pill-unwatched:before { content: "\25CB"; }
 .detail-pill-add:before { content: "+"; font-size: 32px; }
+/* Prominent Back pill on playable details (owner report 2026-11-05): an arrow
+   glyph plus a brighter outline so it reads as a control, not body text. */
+.detail-pill-back:before { content: "\2190"; font-size: 30px; }
+/* The base .detail-pill sets `border: 0`, so a border-color alone rendered as
+   no border at all and the Back pill looked identical to the secondary actions
+   (owner report 2026-11-06: no prominent way back to the season view). */
+.detail-pill-back {
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    background: rgba(8, 10, 14, 0.65);
+    color: #ffffff;
+}
 
 .detail-pill:focus {
     outline: none;
@@ -1279,9 +1334,136 @@ input:focus {
     color: #0b0b0d;
 }
 
+.season-nav {
+    margin: 4px 0 6px;
+}
+
+.season-bar {
+    display: flex;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    padding: 6px 2px 10px;
+}
+
+/* The filter/sort row is a child of the bar so the bar's left/right traversal reaches it,
+   but it takes the whole line and sits under the season pills. */
+.season-tools {
+    display: flex;
+    flex: 0 0 100%;
+    padding: 4px 0 2px;
+}
+
+.season-tool {
+    flex: 0 0 auto;
+    min-height: 52px;
+    margin: 0 14px 6px 0;
+    padding: 12px 24px;
+    border: 2px solid rgba(255, 255, 255, 0.22);
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #d7dbe3;
+    font-size: 22px;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.season-tool-filter[aria-pressed="true"] {
+    border-color: #d6e6f5;
+    background: rgba(214, 230, 245, 0.24);
+    color: #ffffff;
+}
+
+.season-tool:focus {
+    outline: none;
+    background: #ffffff;
+    border-color: #ffffff;
+    color: #0b0b0d;
+    box-shadow: none;
+}
+
+.season-choice {
+    flex: 0 0 auto;
+    min-height: 56px;
+    margin: 0 14px 6px 0;
+    padding: 0 26px;
+    border: 2px solid rgba(255, 255, 255, 0.34);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.season-choice-current {
+    border-color: #d6e6f5;
+    background: rgba(214, 230, 245, 0.24);
+}
+
+.season-choice:focus {
+    outline: none;
+    background: #ffffff;
+    border-color: #ffffff;
+    color: #0b0b0d;
+    box-shadow: none;
+}
+
+.episode-row {
+    display: flex;
+    overflow-x: auto;
+    /* Owner report 2026-11-16: the focused card scales 1.025 (~4px outward) and carries a
+       4px focus ring; the old 2px side padding clipped the leftmost card's ring on the left
+       margin. 14px sides + 8/12px vertical leave room for ring + scale on every edge.
+       position:relative makes the row the cards' offsetParent so the scroll-to-current maths
+       in renderEpisodeStrip is row-local; scroll-padding keeps focused cards off the edge. */
+    padding: 8px 14px 12px;
+    position: relative;
+    scroll-padding-left: 14px;
+    scroll-padding-right: 14px;
+    /* The detail column is a fixed 980px starting 104px from the left (8px screen
+       + 96px hero padding), which capped the row near 55% of the screen. Bleed the
+       row to the screen edge so episodes fill the width (owner report 2026-11-05). */
+    margin-right: calc(-1 * (100vw - 1092px));
+}
+
+.episode-row .media-card {
+    flex: 0 0 300px;
+    width: 300px;
+    margin: 0 22px 14px 0;
+}
+
+.episode-row .media-card[data-shape="landscape"] {
+    flex: 0 0 340px;
+    width: 340px;
+}
+
+.episode-row .media-card[data-shape="landscape"] .poster {
+    height: 191px;
+}
+
+.episode-current .poster {
+    box-shadow: 0 0 0 3px #d6e6f5;
+}
+
+/* Episode-row focus: Blue Calm ring (same language as library cards) instead of the
+   global card underline, which read as a link style on the detail screen. */
+.episode-row .media-card:focus .card-title {
+    text-decoration: none;
+}
+
+.episode-row .media-card:focus .poster {
+    box-shadow: 0 0 0 4px #d6e6f5;
+}
+
+.episode-notice {
+    margin: 2px 0 14px;
+    color: #d7dbe3;
+    font-size: 24px;
+}
+
 .detail-people {
-    width: 560px;
-    margin-bottom: 84px;
+    max-width: 900px;
+    margin: 0 0 26px;
 }
 
 .detail-people-line {
@@ -1799,6 +1981,41 @@ select:focus {
     border-radius: 50%;
     background: #101012;
     color: #ffffff;
+}
+
+/* UIFLOW3 C3 (G21): the cloud-watchlist badge mirrors the watched checkmark's pill and
+   sits in the opposite corner, so a card can carry both at once. The glyph is a marker
+   only; the accessible name comes from the element's aria-label. */
+.card-watchlist {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 10px;
+    border-radius: 50%;
+    background: #101012;
+    color: #ffffff;
+}
+
+/* UIFLOW3 C1 (G18): the shelf-end "See all" card keeps the media-card shape but shows a
+   dashed placeholder surface instead of artwork. */
+.shelf-see-all .see-all-artwork {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px dashed #4a4a52;
+    background: #1b1b1e;
+    color: #6a6a74;
+}
+
+.shelf-see-all .see-all-artwork::before {
+    content: "+";
+    font-size: 96px;
+    line-height: 1;
+}
+
+.shelf-see-all:focus .see-all-artwork {
+    border-color: #9a9aa4;
+    color: #9a9aa4;
 }
 
 .card-title {
@@ -2372,8 +2589,12 @@ select:focus {
 .home-hero-title {
     margin: 0 0 1.5vh;
     font-size: 7vh;
-    line-height: 1.05;
-    max-height: 16vh;
+    /* VFIX A1: 1.05 was tighter than the font's natural descent and overflow:hidden
+       sliced ~5px off descenders (g/y/p/q/j) on the last line. 1.2 gives the line box
+       descender room; 17vh still caps ~2 lines (2 x 7vh x 1.2 = 16.8vh) and the
+       bottom-anchored hero copy keeps Play / More Info above the fold. */
+    line-height: 1.2;
+    max-height: 17vh;
     overflow: hidden;
 }
 
@@ -3219,4 +3440,740 @@ input:focus,
     color: #d7dbe3;
     font-size: 24px;
     line-height: 1.25;
+}
+
+/* Phase 2: full-screen Up Next card, music now-playing view and the trailer offer. */
+
+.up-next-screen {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 8%;
+    border: 0;
+    border-radius: 0;
+    background: rgba(9, 10, 12, 0.97);
+}
+
+.up-next-eyebrow {
+    margin: 0 0 10px;
+    color: #8fb3d9;
+    font-size: 20px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.up-next-frame {
+    position: relative;
+    width: 320px;
+    height: 180px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #26272b;
+}
+
+.up-next-screen .up-next-artwork {
+    width: 320px;
+    height: 180px;
+    margin: 0;
+    object-fit: cover;
+}
+
+.up-next-ring {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 46px;
+    height: 46px;
+    transform: rotate(-90deg);
+}
+
+.up-next-ring-track,
+.up-next-ring-fill {
+    fill: none;
+    stroke-width: 6;
+}
+
+.up-next-ring-track {
+    stroke: rgba(255, 255, 255, 0.22);
+}
+
+.up-next-ring-fill {
+    stroke: #4fa3e0;
+}
+
+.up-next-screen .up-next-title {
+    margin: 0 0 8px;
+    font-size: 40px;
+}
+
+.up-next-meta {
+    margin: 0 0 6px;
+    color: #d2d2d7;
+    font-size: 20px;
+}
+
+.up-next-actions {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 24px;
+}
+
+.up-next-actions .menu-control {
+    margin: 0 14px 12px 0;
+}
+
+.up-next-screen .up-next-actions .menu-control {
+    min-height: 56px;
+    padding: 12px 26px 12px 66px;
+    font-size: 22px;
+}
+
+.now-playing {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 6% 220px;
+    pointer-events: none;
+}
+
+.now-playing-art {
+    width: 260px;
+    height: 260px;
+    margin-right: 26px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(38, 39, 43, 0.9);
+}
+
+.now-playing-artwork {
+    width: 260px;
+    height: 260px;
+    object-fit: cover;
+}
+
+.now-playing-body {
+    color: #f7fafc;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.now-playing-title {
+    margin: 0 0 8px;
+    font-size: 34px;
+}
+
+.now-playing-credits,
+.now-playing-queue {
+    margin: 0;
+    color: #d2d2d7;
+    font-size: 20px;
+}
+
+.now-playing-queue {
+    margin-top: 10px;
+    color: #8fb3d9;
+}
+
+.trailer-prompt {
+    position: fixed;
+    right: 6%;
+    bottom: 110px;
+    left: 6%;
+    z-index: 25;
+    padding: 22px 28px;
+    color: #f7fafc;
+    background: rgba(14, 15, 18, 0.96);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    border-radius: 18px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+}
+
+.trailer-prompt-title {
+    margin: 0 0 8px;
+    font-size: 28px;
+}
+
+.trailer-prompt-text {
+    margin: 0 0 16px;
+    color: #d2d2d7;
+    font-size: 20px;
+}
+
+.trailer-prompt-actions {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.trailer-prompt-actions .menu-control {
+    min-height: 52px;
+    margin: 0 14px 0 0;
+    padding: 10px 24px 10px 62px;
+    font-size: 20px;
+}
+
+/* UIFLOW3 A3: the pass-out overlay sits above the Up Next card, which stays visible
+   behind it so Back still lands on the normal cancellation path. */
+.still-watching {
+    position: fixed;
+    top: 50%;
+    right: 12%;
+    left: 12%;
+    z-index: 30;
+    padding: 26px 32px;
+    transform: translateY(-50%);
+    color: #f7fafc;
+    background: rgba(14, 15, 18, 0.97);
+    border: 2px solid rgba(255, 255, 255, 0.22);
+    border-radius: 18px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+}
+
+.still-watching-title {
+    margin: 0 0 8px;
+    font-size: 30px;
+}
+
+.still-watching-body {
+    margin: 0 0 18px;
+    color: #d2d2d7;
+    font-size: 20px;
+}
+
+.still-watching-actions {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.still-watching-actions .menu-control {
+    min-height: 52px;
+    margin: 0 14px 0 0;
+    padding: 10px 24px 10px 62px;
+    font-size: 20px;
+}
+
+/* --- Section browse layouts ------------------------------------------------ */
+/* The same cards, reflowed as compact rows or poster-plus-synopsis rows. Grid is the
+   default; the viewer's choice is remembered per library in the saved preferences. */
+.item-list.item-list-layout-list {
+    flex-direction: column;
+    max-width: 1240px;
+}
+
+.item-list.item-list-layout-list .media-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    width: 100%;
+    flex: 0 0 auto;
+    margin: 0 0 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.item-list.item-list-layout-list .poster {
+    width: 132px;
+    height: 99px;
+    flex: 0 0 132px;
+    border-radius: 12px 0 0 12px;
+}
+
+.item-list.item-list-layout-list .media-card[data-shape="square"] .poster {
+    width: 99px;
+    height: 99px;
+    flex-basis: 99px;
+}
+
+.item-list.item-list-layout-list .card-title {
+    flex: 1 1 auto;
+    padding: 0 24px;
+    font-size: 26px;
+}
+
+.item-list.item-list-layout-list .card-meta {
+    flex: 1 1 100%;
+    padding: 0 24px 12px;
+    font-size: 22px;
+}
+
+.item-list.item-list-layout-list .card-progress {
+    flex: 0 0 100%;
+    margin: 0 24px 12px;
+}
+
+.item-list.item-list-layout-summary {
+    flex-direction: column;
+    max-width: 1240px;
+}
+
+.item-list.item-list-layout-summary .media-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    width: 100%;
+    flex: 0 0 auto;
+    margin: 0 0 22px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.item-list.item-list-layout-summary .poster {
+    width: 200px;
+    height: 300px;
+    flex: 0 0 200px;
+    border-radius: 16px 0 0 16px;
+}
+
+.item-list.item-list-layout-summary .media-card[data-shape="landscape"] .poster {
+    width: 240px;
+    height: 135px;
+    flex-basis: 240px;
+}
+
+.item-list.item-list-layout-summary .media-card[data-shape="square"] .poster {
+    width: 200px;
+    height: 200px;
+    flex-basis: 200px;
+}
+
+.item-list.item-list-layout-summary .card-title {
+    flex: 1 1 auto;
+    padding: 16px 24px 0;
+    font-size: 30px;
+}
+
+.item-list.item-list-layout-summary .card-meta {
+    flex: 1 1 100%;
+    padding: 4px 24px 0;
+}
+
+.item-list.item-list-layout-summary .card-summary {
+    display: block;
+    flex: 1 1 100%;
+    padding: 10px 24px 18px;
+    color: #b7b7bf;
+    font-size: 24px;
+    line-height: 1.45;
+}
+
+.item-list.item-list-layout-summary .card-progress {
+    flex: 0 0 100%;
+    margin: 0 24px 16px;
+}
+
+/* ---------------------------------------------------------------------------
+   Dense poster grid (owner request 11-05): the 6-column grid wasted space —
+   the grid layout is now a poster-dominant 9-column wall with title only.
+   Margins carry the gutters (this engine has no flex gap), and every width
+   divides out n gutters so exactly n cards fit per row.
+--------------------------------------------------------------------------- */
+
+.item-list.item-list-layout-grid {
+    padding: 4px 6px 12px;
+}
+
+.item-list.item-list-layout-grid .media-card {
+    width: calc((100% - 144px) / 9);
+    flex-basis: calc((100% - 144px) / 9);
+    margin: 0 16px 16px 0;
+}
+
+.item-list.item-list-layout-grid .poster {
+    height: 280px;
+    border-radius: 10px;
+}
+
+.item-list.item-list-layout-grid .media-card[data-shape="landscape"] {
+    width: calc((100% - 128px) / 8);
+    flex-basis: calc((100% - 128px) / 8);
+}
+
+.item-list.item-list-layout-grid .media-card[data-shape="landscape"] .poster {
+    height: 126px;
+}
+
+.item-list.item-list-layout-grid .card-title {
+    margin-top: 6px;
+    font-size: 20px;
+    line-height: 1.3;
+}
+
+.item-list.item-list-layout-grid .card-meta {
+    display: none;
+}
+
+.item-list.item-list-layout-grid .card-watched {
+    top: 8px;
+    right: 8px;
+    padding: 3px 8px;
+    font-size: 20px;
+}
+
+.item-list.item-list-layout-grid .card-watchlist {
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    font-size: 20px;
+}
+
+.item-list.item-list-layout-grid .card-progress {
+    margin-top: 6px;
+}
+
+.item-list.item-list-layout-grid .media-card:focus {
+    transform: scale(1.04);
+}
+
+/* ---------------------------------------------------------------------------
+   P5: scrub preview thumbnails, high contrast and interface text scale.
+   Explicit values only: this engine has no CSS custom properties, so nothing
+   below uses var(), and no rule relies on gap.
+--------------------------------------------------------------------------- */
+
+.sr-live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.search-suggestions {
+    margin: 8px 0;
+}
+
+.search-suggestions[hidden] {
+    display: none;
+}
+
+.search-suggestions .menu-control {
+    margin: 0 16px 16px 0;
+}
+
+.scrub-preview {
+    position: absolute;
+    z-index: 6;
+    max-width: 288px;
+    padding: 6px 6px 4px;
+    transform: translateX(-50%);
+    background: rgba(8, 8, 10, 0.94);
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+}
+
+.scrub-preview-image {
+    display: block;
+    width: 264px;
+    height: 148px;
+    background: #000000;
+    object-fit: cover;
+}
+
+.scrub-preview-time {
+    display: block;
+    padding-top: 6px;
+    color: #ffffff;
+    font-size: 22px;
+    text-align: center;
+}
+
+/* High contrast: the greyscale palette becomes pure black surfaces with white
+   text and visible borders. The existing white focus outline is untouched. */
+.vemm-high-contrast body,
+.vemm-high-contrast .app-shell,
+.vemm-high-contrast .screen {
+    background: #000000;
+    color: #ffffff;
+}
+
+.vemm-high-contrast .app-header h1,
+.vemm-high-contrast .app-header p,
+.vemm-high-contrast .status,
+.vemm-high-contrast .help-text,
+.vemm-high-contrast .empty-state,
+.vemm-high-contrast .detail-meta,
+.vemm-high-contrast .detail-eyebrow,
+.vemm-high-contrast .detail-synopsis,
+.vemm-high-contrast .detail-identity,
+.vemm-high-contrast .detail-title,
+.vemm-high-contrast .playback-context,
+.vemm-high-contrast .playback-time,
+.vemm-high-contrast .playback-remaining,
+.vemm-high-contrast .playback-chapter,
+.vemm-high-contrast .player-hud h2,
+.vemm-high-contrast .card-title,
+.vemm-high-contrast .card-meta,
+.vemm-high-contrast .card-summary,
+.vemm-high-contrast .group-title,
+.vemm-high-contrast .search-recents h3,
+.vemm-high-contrast .file-info-label,
+.vemm-high-contrast .scrub-preview-time {
+    color: #ffffff;
+}
+
+.vemm-high-contrast .status-error,
+.vemm-high-contrast .inline-error {
+    color: #ffb3b3;
+}
+
+.vemm-high-contrast .media-card,
+.vemm-high-contrast .item-list.item-list-layout-list .media-card,
+.vemm-high-contrast .item-list.item-list-layout-summary .media-card {
+    background: #000000;
+    border: 2px solid #ffffff;
+}
+
+.vemm-high-contrast .menu-control,
+.vemm-high-contrast .detail-pill,
+.vemm-high-contrast .secondary-button,
+.vemm-high-contrast .library-button {
+    background: #000000;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+}
+
+.vemm-high-contrast .poster,
+.vemm-high-contrast .catalogue-grid .title-tile-art {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.vemm-high-contrast .card-progress {
+    background: #ffffff;
+}
+
+.vemm-high-contrast .card-progress-fill {
+    background: #000000;
+}
+
+.vemm-high-contrast .playback-progress {
+    background: #ffffff;
+}
+
+.vemm-high-contrast .playback-progress-fill {
+    background: #000000;
+}
+
+.vemm-high-contrast .chapter-tick {
+    background: #ffb300;
+    outline: 1px solid #000000;
+}
+
+.vemm-high-contrast .player-hud {
+    background: rgba(0, 0, 0, 0.94);
+}
+
+.vemm-high-contrast .scrub-preview {
+    background: #000000;
+    border-color: #ffffff;
+}
+
+/* Interface text scale: a bounded set of the surfaces that carry navigation,
+   status and playback text. The app's type sizes are px-only on this engine,
+   so each step restates the sizes it raises instead of scaling a root unit. */
+.vemm-text-large .app-header h1 { font-size: 46px; }
+.vemm-text-large .app-header p,
+.vemm-text-large .status,
+.vemm-text-large .help-text,
+.vemm-text-large .empty-state,
+.vemm-text-large .inline-error,
+.vemm-text-large .detail-meta,
+.vemm-text-large .card-meta,
+.vemm-text-large .card-summary,
+.vemm-text-large .playback-time,
+.vemm-text-large .playback-remaining { font-size: 28px; }
+.vemm-text-large .group-title,
+.vemm-text-large .player-hud h2 { font-size: 37px; }
+.vemm-text-large .detail-eyebrow { font-size: 32px; }
+.vemm-text-large .card-title { font-size: 30px; }
+.vemm-text-large .playback-context { font-size: 26px; }
+.vemm-text-large .search-recents h3 { font-size: 28px; }
+.vemm-text-large .menu-control,
+.vemm-text-large .secondary-button,
+.vemm-text-large .library-button { font-size: 30px; min-height: 88px; }
+.vemm-text-large .detail-pill { font-size: 28px; min-height: 74px; }
+
+.vemm-text-xlarge .app-header h1 { font-size: 52px; }
+.vemm-text-xlarge .app-header p,
+.vemm-text-xlarge .status,
+.vemm-text-xlarge .help-text,
+.vemm-text-xlarge .empty-state,
+.vemm-text-xlarge .inline-error,
+.vemm-text-xlarge .detail-meta,
+.vemm-text-xlarge .card-meta,
+.vemm-text-xlarge .card-summary,
+.vemm-text-xlarge .playback-time,
+.vemm-text-xlarge .playback-remaining { font-size: 32px; }
+.vemm-text-xlarge .group-title,
+.vemm-text-xlarge .player-hud h2 { font-size: 42px; }
+.vemm-text-xlarge .detail-eyebrow { font-size: 36px; }
+.vemm-text-xlarge .card-title { font-size: 34px; }
+.vemm-text-xlarge .playback-context { font-size: 30px; }
+.vemm-text-xlarge .search-recents h3 { font-size: 32px; }
+.vemm-text-xlarge .menu-control,
+.vemm-text-xlarge .secondary-button,
+.vemm-text-xlarge .library-button { font-size: 34px; min-height: 104px; }
+.vemm-text-xlarge .detail-pill { font-size: 32px; min-height: 84px; }
+
+/* Screen saver (owner request 2026-11-06, default on): a black overlay with a Vemm
+   mark that wanders, briefly visible then faded, so no static pixels stay lit long
+   enough to burn into the panel. */
+.screensaver {
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background: #000;
+    z-index: 100;
+}
+.screensaver-logo {
+    position: absolute;
+    width: 96px;
+    height: 96px;
+    opacity: 0;
+    transition: opacity 1.2s linear;
+}
+
+/* UIF-P3: shelf/toolbar run buttons and the Play Queue panel. */
+.shelf-header {
+    display: flex;
+    align-items: center;
+}
+
+.shelf-header .hub-title {
+    flex: 1 1 auto;
+}
+
+.shelf-actions {
+    display: flex;
+    white-space: nowrap;
+}
+
+.shelf-actions button {
+    margin-left: 12px;
+}
+
+.queue-row {
+    display: flex;
+    align-items: center;
+}
+
+.queue-row .queue-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.queue-row [data-queue-action="move-up"],
+.queue-row [data-queue-action="move-down"],
+.queue-row [data-queue-action="remove"] {
+    flex: 0 0 auto;
+    margin-left: 8px;
+}
+
+.queue-current {
+    box-shadow: inset 0 0 0 3px #5e7fa7;
+}
+
+.queue-playing {
+    flex: 0 0 auto;
+    margin-left: 10px;
+    color: #b7d0ff;
+    font-size: 20px;
+}
+
+/* UIF-P4: category chip row beside the alphabet index. */
+.category-list {
+    display: flex;
+    flex-wrap: wrap;
+    max-width: 1400px;
+}
+
+.category-list .menu-control {
+    min-width: 140px;
+    margin: 0 12px 16px 0;
+    padding: 16px 24px;
+    border-radius: 16px;
+    text-align: center;
+}
+
+.category-list .menu-control::before {
+    display: none;
+}
+
+/* UIFLOW3 B1 (G12): the small topbar clock. It rides the header baseline at the
+   far right and stays visible over the player, where the rest of the header is
+   hidden. */
+.topbar-clock {
+    margin-left: auto;
+    align-self: center;
+    color: #b8bfcc;
+    font-size: 26px;
+    letter-spacing: 1px;
+}
+
+.playing .app-header .topbar-clock {
+    visibility: visible;
+}
+
+/* UIFLOW3 B1 (G38): the finish time read beside the remaining-time clock. */
+.playback-end {
+    margin-left: 16px;
+    color: #b5b5bd;
+    white-space: nowrap;
+}
+
+/* UIFLOW3 B3 (G39): Reduce motion zeroes every transition and animation while
+   the preference is on; the class sits on <html>, so it covers the whole app. */
+.vemm-reduce-motion *,
+.vemm-reduce-motion *::before,
+.vemm-reduce-motion *::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* UIFLOW3 B5 (G26): the per-library pill bar above the browse toolbar. Pills are
+   capsules; the remembered pill for this library carries aria-current. */
+.section-pills {
+    display: flex;
+    align-items: center;
+    margin: 0 0 8px;
+}
+
+.section-pills .section-pill {
+    margin: 0 12px 0 0;
+    padding: 12px 26px;
+    border-radius: 999px;
+    background: transparent;
+    color: #b8bfcc;
+    font-size: 22px;
+}
+
+.section-pills .section-pill::before {
+    display: none;
+}
+
+.section-pills .section-pill[aria-current="true"] {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+}
+
+/* UIFLOW3 B8 (G7): the disabled hero pill when a title has no playable Part. */
+.detail-pill-unavailable {
+    opacity: 0.45;
+    cursor: default;
 }

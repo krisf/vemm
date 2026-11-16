@@ -28,8 +28,14 @@ assert(/webapis\.avplay/.test(sources), "avplay privilege has a use");
 assert(/webapis\.productinfo/.test(sources), "productinfo privilege has a use");
 assert(/tizen\.tvinputdevice/.test(sources), "tv.inputdevice privilege has a use");
 
-assert(/<tizen:application[^>]*\bid="VemmTvApp0\.Vemm"/.test(config));
-assert(/<tizen:application[^>]*\bpackage="VemmTvApp0"/.test(config));
+// Owner decision 2026-11-04: this build ships side-by-side as VemmFixApp because the
+// authoring certificate differs from upstream's and the TV rejects an in-place identity
+// swap. Display branding, privileges, and access policy stay upstream; only the two
+// identity attributes deviate, and the official app has been uninstalled from the TV.
+assert(/<tizen:application[^>]*\bid="VemmFixApp\.Vemm"/.test(config),
+    "the side-by-side appid must stay stable so installs replace in place");
+assert(/<tizen:application[^>]*\bpackage="VemmFixApp"/.test(config),
+    "the side-by-side package id must stay stable so installs replace in place");
 
 // PMS servers live at arbitrary user-specific LAN, plex.direct and remote origins, so network
 // access cannot be enumerated; keep it to exactly one wildcard rule.

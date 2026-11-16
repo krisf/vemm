@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Account-free Vemm display and speed probe</title>
+    <style>
+        body { background: #101012; color: white; font-family: sans-serif; }
+        #state { font-size: 30px; }
+        #log { white-space: pre-wrap; font-family: monospace; font-size: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Account-free display and speed probe</h1>
+    <p id="state">No stream. Drive the probe from the inspector:
+        displaySpeedProbe.prepare(URL), then .play(), .setDisplayMethod(name),
+        .setDisplayArea(rect), .setSpeed(name), and read .report().</p>
+    <div id="log"></div>
+    <script src="$WEBAPIS/webapis/webapis.js"></script>
+    <script src="probe.js"></script>
+    <script>
+        document.getElementById("state").textContent =
+            "avplay " + (window.displaySpeedProbe.capabilities().hasAvplay ? "present" : "absent") +
+            "; state " + window.displaySpeedProbe.state();
+    </script>
+</body>
+</html>

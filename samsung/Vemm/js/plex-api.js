@@ -38,6 +38,19 @@
         return baseUrl;
     }
 
+    // Sort keys PMS accepts on a children listing. The season view offers server order (no key),
+    // newest and oldest, so the accepted set is pinned here instead of trusting a caller string.
+    var CHILD_SORTS = ["addedAt:asc", "addedAt:desc", "originalTitle:asc", "originalTitle:desc",
+        "index:asc", "index:desc", "releaseDate:asc", "releaseDate:desc"];
+
+    function childSort(value) {
+        if (value === undefined || value === null || value === "") { return ""; }
+        if (CHILD_SORTS.indexOf(String(value)) === -1) {
+            throw new Error("The requested episode sort is not supported by this server.");
+        }
+        return String(value);
+    }
+
     function listFrom(container, field) {
         if (Array.isArray(container[field])) {
             return container[field];
@@ -701,23 +714,46 @@
             return value;
         }
 
+        // Some servers hand back extra/trailer asset keys that already carry a query
+        // string (e.g. /services/iva/assets/390811/video.mp4?fmt=4&bitrate=5000).
+        // Stream keys get this variant: it tolerates one query section but keeps
+        // every other localPath guard (absolute path, no authority, no backslash,
+        // fragment, CR/LF injection or traversal).
+        function streamPath(value) {
+            if (typeof value !== "string") {
+                throw new Error("Plex returned an invalid local resource path.");
+            }
+            var cut = value.indexOf("?");
+            var path = cut === -1 ? value : value.slice(0, cut);
+            var query = cut === -1 ? "" : value.slice(cut + 1);
+            if (path.charAt(0) !== "/" || path.charAt(1) === "/" ||
+                    /[\\#\r\n]/.test(path) || path.indexOf("..") !== -1 ||
+                    query.indexOf("#") !== -1 || /[\\\r\n]/.test(query) || query.indexOf("..") !== -1) {
+                throw new Error("Plex returned an invalid local resource path.");
+            }
+            return value;
+        }
+
         return {
             cancelRequests: function () { scope.cancel(); },
             request: get,
             identity: function () { return get("/identity"); },
             getMetadata: function (id) {
                 return get("/library/metadata/" + key(id), "GET", {
-                    includeChapters: 1, includeMarkers: 1, includeExtras: 1, includeRelated: 1, includeOnDeck: 1
+                    includeChapters: 1, includeMarkers: 1, includeExtras: 1, includeRelated: 1, includeOnDeck: 1,
+                    includeUserState: 1
                 }).then(function (container) {
                     var metadata = listFrom(container, "Metadata");
                     if (!metadata.length) { throw new Error("This item is no longer available."); }
                     return metadata[0];
                 });
             },
-            getChildren: function (id, start) {
-                return get("/library/metadata/" + key(id) + "/children", "GET", {
-                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
-                });
+            getChildren: function (id, start, options) {
+                var query = { "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50 };
+                if (options && options.unwatched) { query.includeNotWatched = 1; }
+                var sort = options ? childSort(options.sort) : "";
+                if (sort) { query.sort = sort; }
+                return get("/library/metadata/" + key(id) + "/children", "GET", query);
             },
             getFirstEpisode: function (id) {
                 return get("/library/metadata/" + key(id) + "/allLeaves", "GET", {
@@ -796,6 +832,53 @@
                 }
                 return page(0);
             },
+            // Mirror of nextEpisode for the transport's previous-episode step: walks the
+            // series leaves in order and returns the item before the current one.
+            previousEpisode: function (item) {
+                if (item.type !== "episode" || !item.grandparentRatingKey) { return Promise.resolve(null); }
+                var previous = null;
+                function page(start) {
+                    if (start >= 2000) {
+                        return Promise.reject(new Error("This series exceeds the previous-episode lookup limit. Choose the previous episode from its season."));
+                    }
+                    return get("/library/metadata/" + key(item.grandparentRatingKey) + "/allLeaves", "GET", {
+                        "X-Plex-Container-Start": start, "X-Plex-Container-Size": 50
+                    }).then(function (container) {
+                        var items = listFrom(container, "Metadata");
+                        for (var i = 0; i < items.length; i += 1) {
+                            if (String(items[i].ratingKey) === String(item.ratingKey)) { return previous; }
+                            previous = items[i];
+                        }
+                        if (items.length && start + items.length < container.totalSize) {
+                            return page(start + items.length);
+                        }
+                        return null;
+                    });
+                }
+                return page(0);
+            },
+            themeSong: function (id) {
+                // Theme songs ride along with the show's extras. PMS ignores the type=10
+                // query filter, so the theme entry is selected client-side: subtype
+                // "opening" (or type "theme") with a playable part. The URL is built with
+                // streamUrl so no playback session is created — a theme song must never
+                // mark the show watched or appear in watch history.
+                var self = this;
+                return get("/library/metadata/" + key(id) + "/extras", "GET").then(function (container) {
+                    var items = listFrom(container, "Metadata");
+                    for (var i = 0; i < items.length; i += 1) {
+                        var extra = items[i];
+                        if (!extra || (extra.subtype !== "opening" && extra.type !== "theme")) { continue; }
+                        var media = extra.Media && extra.Media[0];
+                        var part = media && media.Part && media.Part[0];
+                        if (part && typeof part.key === "string") {
+                            return { ratingKey: extra.ratingKey, title: extra.title || "",
+                                duration: Number(extra.duration) || 0, url: self.streamUrl(part.key, {}) };
+                        }
+                    }
+                    return null;
+                });
+            },
             getPerson: function (section, personId, start) {
                 return get("/library/people/" + key(personId) + "/media", "GET", {
                     "X-Plex-Container-Size": 50, "X-Plex-Container-Start": start || 0
@@ -828,11 +911,28 @@
                 }
                 return page(0);
             },
-            search: function (query) {
+            // UIFLOW3 C1 (G18): a search hub's "See all" re-queries the same endpoint with a
+            // larger limit; search hubs carry no totalSize, so the whole hub is rendered
+            // client-side from that one answer. The default keeps the shelf limit at fifty.
+            search: function (query, limit) {
                 if (!String(query || "").trim() || String(query).length > 200) {
                     return Promise.reject(new Error("Enter a search of 1 to 200 characters."));
                 }
-                return get("/hubs/search", "GET", { query: query, limit: 50, includeCollections: 1 });
+                var size = Number(limit);
+                if (!isNonNegativeInteger(size) || size < 1 || size > 100) { size = 50; }
+                return get("/hubs/search", "GET", { query: query, limit: size, includeCollections: 1 });
+            },
+            // Search suggestions. docs/plex-openapi.json documents
+            // /library/sections/{sectionId}/autocomplete with a {field}.query parameter; the
+            // app autocompletes titles and leaves the optional item-type filter to the server.
+            getSuggestions: function (section, query) {
+                var term = String(query || "").trim();
+                if (!term || term.length > 200) {
+                    return Promise.reject(new Error("Enter a search of 1 to 200 characters."));
+                }
+                return get("/library/sections/" + key(section) + "/autocomplete", "GET", {
+                    "title.query": term
+                });
             },
             getFilters: function (section) { return get("/library/sections/" + key(section) + "/filters"); },
             getSorts: function (section) { return get("/library/sections/" + key(section) + "/sorts"); },
@@ -853,6 +953,81 @@
                 if (!isNonNegativeInteger(start || 0)) { return Promise.reject(new Error("Invalid collection page.")); }
                 return get("/library/sections/" + key(section) + "/collections", "GET", {
                     "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
+                });
+            },
+            // Browse by folder: the section's own directory tree instead of its flattened titles.
+            // A server that answers with neither directories nor metadata reads as an empty view.
+            getSectionFolders: function (section, start) {
+                if (!isNonNegativeInteger(start || 0)) { return Promise.reject(new Error("Invalid folder page.")); }
+                return get("/library/sections/" + key(section) + "/all", "GET", {
+                    folder: 1, "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
+                }).then(function (container) {
+                    var folders = (Array.isArray(container.Directory) ? container.Directory : [])
+                        .concat(Array.isArray(container.Metadata) ? container.Metadata : []);
+                    return { Metadata: folders,
+                        totalSize: isNonNegativeInteger(container.totalSize) ? container.totalSize : folders.length,
+                        offset: isNonNegativeInteger(container.offset) ? container.offset : (start || 0) };
+                });
+            },
+            getPlaylists: function (type, start) {
+                if (!isNonNegativeInteger(start || 0)) { return Promise.reject(new Error("Invalid playlist page.")); }
+                return get("/playlists", "GET", {
+                    playlistType: type || "movie", "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
+                });
+            },
+            getPlaylistItems: function (id, start) {
+                if (!isNonNegativeInteger(start || 0)) { return Promise.reject(new Error("Invalid playlist page.")); }
+                return get("/playlists/" + key(id) + "/items", "GET", {
+                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 50
+                });
+            },
+            // Scrub preview thumbnails. The generation trigger is documented in
+            // docs/plex-openapi.json (PUT /library/metadata/{ids}/chapterThumbs); the reader is
+            // not, so an unexpected answer reads back as "no previews" and the scrub bar keeps
+            // its current behaviour instead of the app guessing a shape.
+            requestPreviewThumbnails: function (id) {
+                if (!/^[0-9]+$/.test(String(id || ""))) {
+                    return Promise.reject(new Error("Plex returned an invalid media identifier."));
+                }
+                return get("/library/metadata/" + key(id) + "/chapterThumbs", "PUT", null, true);
+            },
+            getPreviewThumbnails: function (id, settings) {
+                var page = settings || {};
+                var revision = scope.revision;
+                var startMs = isNonNegativeInteger(page.startMs) ? page.startMs : 0;
+                var count = Math.max(1, Math.min(200, Number(page.count) || 100));
+                return Promise.resolve().then(function () {
+                    if (revision !== scope.revision) { throw requestCancelled(); }
+                    return timedFetch(fetchRequest, baseUrl + "/library/metadata/" + key(id) +
+                        "/previewThumbnails?startMs=" + startMs + "&count=" + count + "&includeB64=1", {
+                            credentials: "omit", redirect: "error",
+                            headers: { Accept: "application/json", "X-Plex-Token": token,
+                                "X-Plex-Client-Identifier": options.clientIdentifier || clientId() }
+                        }, scope);
+                }).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error("Preview thumbnails are unavailable (HTTP " + response.status + ").");
+                    }
+                    return readJson(response);
+                }).then(function (payload) {
+                    var container = payload && payload.MediaContainer ? payload.MediaContainer : payload;
+                    var rows = container && Array.isArray(container.thumbnails) ? container.thumbnails : [];
+                    return { thumbnails: rows.filter(function (row) {
+                            return row && isNonNegativeInteger(row.time) &&
+                                ((typeof row.img === "string" && row.img.length) ||
+                                    (typeof row.url === "string" && row.url.length));
+                        }),
+                        complete: !!(container && container.complete === true) };
+                }).catch(function (error) {
+                    if (error.code === "cancelled") { throw error; }
+                    return { thumbnails: [], complete: false };
+                });
+            },
+            // Every playable leaf under an item, for "Play all" from a show or season detail.
+            getAllLeaves: function (id, start) {
+                if (!isNonNegativeInteger(start || 0)) { return Promise.reject(new Error("Invalid episode page.")); }
+                return get("/library/metadata/" + key(id) + "/allLeaves", "GET", {
+                    "X-Plex-Container-Start": start || 0, "X-Plex-Container-Size": 200
                 });
             },
             image: function (path, size) {
@@ -881,12 +1056,15 @@
                 });
             },
             streamUrl: function (path, query) {
-                localPath(path);
+                streamPath(path);
                 var params = {};
                 Object.keys(query || {}).forEach(function (name) { params[name] = query[name]; });
                 params["X-Plex-Client-Identifier"] = options.clientIdentifier || clientId();
                 params["X-Plex-Product"] = PRODUCT;
-                return baseUrl + path + "?" + Object.keys(params).map(function (name) {
+                // Keys that already carry a query string (trailer/extra assets) get
+                // client params appended with & instead of a second ?.
+                var joiner = path.indexOf("?") === -1 ? "?" : "&";
+                return baseUrl + path + joiner + Object.keys(params).map(function (name) {
                     return encodeURIComponent(name) + "=" + encodeURIComponent(params[name]);
                 }).concat(token ? ["X-Plex-Token=" + encodeURIComponent(token)] : []).join("&");
             },
@@ -945,6 +1123,18 @@
             removeContinueWatching: function (id) {
                 return get("/actions/removeFromContinueWatching", "PUT", { ratingKey: key(id) }, true);
             },
+            // UIF-P2 (API-CAPABILITIES §1): the viewer's own star rating, 1..10; the server's
+            // documented reset value -1 removes it. Writes ride the confirmed action path only.
+            setRating: function (item, rating) {
+                var value = Number(rating);
+                if (value !== -1 && !(value >= 1 && value <= 10 && value === Math.round(value))) {
+                    return Promise.reject(new Error("Ratings must be whole stars from 1 to 10, or -1 to remove."));
+                }
+                return get("/:/rate", "PUT", {
+                    identifier: "com.plexapp.plugins.library", key: key(item && item.ratingKey || item),
+                    rating: String(value)
+                }, true);
+            },
             // Mirrors the LG contract (rust-modules/plex/src/plex/timeline.rs): the decision's
             // X-Plex-Session-Identifier and the selected streams ride with every report.
             timeline: function (item, position, state, session, playQueue, tracks) {
@@ -1002,7 +1192,9 @@
                 // removeFromContinueWatching hides an item from /hubs/continueWatching and home.ondeck
                 // but not from home.continue, so the deck comes from the dedicated hub. A server
                 // without that hub keeps the promoted rows.
-                var deck = get("/hubs/continueWatching?count=12").then(function (container) {
+                // UIFLOW3 B4 (G30/G50): the row can be sized up to 20, so the deck asks
+                // for the largest row the setting allows; renderHome slices it down.
+                var deck = get("/hubs/continueWatching?count=20").then(function (container) {
                     return listFrom(container, "Hub").filter(function (hub) {
                         return Array.isArray(hub && hub.Metadata) && hub.Metadata.length > 0;
                     }).slice(0, 1);
@@ -1018,6 +1210,18 @@
                     });
                     rest.splice(at === -1 ? 0 : at, 0, results[1][0]);
                     return rest.filter(Boolean);
+                });
+            },
+            // UIFLOW3 C2 (G25): a library's own hub set (/hubs/sections/{id}) — the server-side
+            // Recommended shelves. One request; the caller renders every returned hub. No
+            // includeGuids/includeUserState here: this listing must stay container-paged.
+            getSectionHubs: function (sectionKey) {
+                var key = String(sectionKey || "");
+                if (!/^[0-9]+$/.test(key)) {
+                    return Promise.reject(new Error("The library section key is invalid."));
+                }
+                return get("/hubs/sections/" + key).then(function (container) {
+                    return listFrom(container, "Hub");
                 });
             },
             getSectionItems: function (sectionKey, start, size, filters) {
@@ -1053,13 +1257,21 @@
         };
     }
 
+    // UIF-P2: the viewer's own rating as carried on metadata (item.userRating), or null.
+    function ratingFor(item) {
+        var value = Number(item && item.userRating);
+        return isFinite(value) && value > 0 ? value : null;
+    }
+
     return {
         createClient: createClient,
         createAuthClient: createAuthClient,
         createAccountClient: createAccountClient,
         selectServer: selectServer,
         validateBaseUrl: validateBaseUrl,
+        guidTail: guidTail,
         localCatalogueIndex: localCatalogueIndex,
-        matchCredit: matchCredit
+        matchCredit: matchCredit,
+        ratingFor: ratingFor
     };
 }));

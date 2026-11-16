@@ -15,6 +15,8 @@
         var duration = 0;
         var pending = null;
         var pendingSeek = null;
+        var seekWaiters = [];
+        var seekLatest = null;
         var timer = null;
 
         function notify(type, detail) { emit({ type: type, state: state, position: position, duration: duration, detail: detail }); }
@@ -175,40 +177,67 @@
                 } catch (failure) { failed("open"); }
             });
         }
+        // Rapid skipping coalesces into one seek chain: the newest target wins and
+        // every caller in the burst settles with the final outcome. A second skip no
+        // longer rejects ("A seek is already in progress"), which used to surface as
+        // the Playback-problem panel when the user skipped around a lot.
+        function runSeekChain() {
+            var ownGeneration = generation;
+            var target = seekLatest;
+            var settled = false;
+            var timeout = setTimeout(function () { settle(error("seek-timeout")); }, options.seekTimeout || 10000);
+            function settle(failure, landed) {
+                if (settled) { return; }
+                settled = true;
+                clearTimeout(timeout);
+                pendingSeek = null;
+                var waiters = seekWaiters; seekWaiters = []; seekLatest = null;
+                for (var i = 0; i < waiters.length; i += 1) {
+                    if (failure) { waiters[i].reject(failure); } else { waiters[i].resolve(landed); }
+                }
+            }
+            pendingSeek = function (failure) { settle(failure || new Error("Seek cancelled.")); };
+            try {
+                avplay.seekTo(target, function () {
+                    if (settled) { return; }
+                    if (ownGeneration !== generation) { settle(new Error("Seek cancelled.")); return; }
+                    // A newer skip arrived while this native seek was in flight: hand off
+                    // to another chain link aimed at the newest target (waiters carry over).
+                    if (seekLatest !== null && seekLatest !== target) {
+                        clearTimeout(timeout);
+                        settled = true;
+                        pendingSeek = null;
+                        runSeekChain();
+                        return;
+                    }
+                    try {
+                        position = Math.max(0, Math.round(Number(avplay.getCurrentTime()) || 0));
+                        settle(null, position);
+                        notify("time");
+                    } catch (failure) { settle(error("seek")); }
+                }, function () { settle(error("seek")); });
+            } catch (failure) { settle(error("seek")); }
+        }
+
         function seek(target) {
             try { requireState(["playing", "paused", "ready"], "seek"); }
             catch (failure) { return Promise.reject(failure); }
             if (typeof target !== "number" || !isFinite(target)) { return Promise.reject(new Error("Invalid seek position.")); }
-            if (pendingSeek) { return Promise.reject(new Error("A seek is already in progress. Wait before seeking again.")); }
-            var ownGeneration = generation;
             target = Math.max(0, Math.min(duration || target, Math.round(target)));
             return new Promise(function (resolve, reject) {
-                var settled = false;
-                var timeout = setTimeout(function () { finish(error("seek-timeout")); }, options.seekTimeout || 10000);
-                function finish(failure, landed) {
-                    if (settled) { return; }
-                    settled = true;
-                    clearTimeout(timeout);
-                    pendingSeek = null;
-                    if (failure) { reject(failure); }
-                    else { resolve(landed); }
-                }
-                pendingSeek = finish;
-                try {
-                    avplay.seekTo(target, function () {
-                        if (settled) { return; }
-                        if (ownGeneration !== generation) { finish(new Error("Seek cancelled.")); return; }
-                        try {
-                            position = Math.max(0, Math.round(Number(avplay.getCurrentTime()) || 0));
-                            finish(null, position);
-                            notify("time");
-                        } catch (failure) { finish(error("seek")); }
-                    }, function () { finish(error("seek")); });
-                } catch (failure) { finish(error("seek")); }
+                seekWaiters.push({ resolve: resolve, reject: reject });
+                seekLatest = target;
+                if (pendingSeek) { return; }
+                runSeekChain();
             });
         }
         return {
             open: open, close: close, seek: seek,
+            // Best-effort output level (0-100); used to keep theme music under the UI.
+            setVolume: function (level) {
+                if (!avplay) { return; }
+                try { avplay.setVolume(Math.max(0, Math.min(100, level))); } catch (failure) { /* best effort */ }
+            },
             snapshot: function () { return { state: state, position: position, duration: duration }; },
             pause: function () {
                 requireState(["playing"], "pause");

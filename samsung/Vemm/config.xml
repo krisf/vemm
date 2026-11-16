@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://vemm.invalid/tizen" version="0.0.0" viewmodes="maximized">
-	<tizen:application id="VemmTvApp0.Vemm" package="VemmTvApp0" required_version="3.0"/>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://vemmside.invalid/tizen" version="0.2.16" viewmodes="maximized">
+	<tizen:application id="VemmFixApp.Vemm" package="VemmFixApp" required_version="3.0"/>
 	<name>Vemm</name>
 	<icon src="icon.png"/>
 	<tizen:privilege name="http://tizen.org/privilege/internet"/>

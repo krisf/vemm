@@ -7,6 +7,7 @@ for test in tests/tizen/*.test.js; do
 done
 python3 -m unittest discover -s tests/tizen -p 'test_*.py' -v
 node tools/tizen/acceleration-probe/selftest.cjs
+node tools/tizen/display-speed-probe/selftest.cjs
 node tools/tizen/graphics-benchmark/adapter.test.cjs
 python3 tools/tizen/build-icon.py
 node --check samsung/Vemm/main.js

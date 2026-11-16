@@ -14,10 +14,11 @@ assert(fs.existsSync(app), "The active app source path must be samsung/Vemm");
 assert(!fs.existsSync(path.join(root, "samsung/PlexTv")), "The legacy app-owned source path must be retired");
 
 var config = read("samsung/Vemm/config.xml");
-assert(config.includes('id="VemmTvApp0.Vemm"'));
-assert(config.includes('package="VemmTvApp0"'));
+// Side-by-side fork identity (author certificate differs; official app uninstalled).
+assert(config.includes('id="VemmFixApp.Vemm"'));
+assert(config.includes('package="VemmFixApp"'));
 assert(config.includes("<name>Vemm</name>"));
-assert(/^[A-Za-z0-9]{10}$/.test("VemmTvApp0"), "The candidate package ID must be ten alphanumeric characters");
+assert(/^[A-Za-z0-9]{10}$/.test("VemmFixApp"), "The candidate package ID must be ten alphanumeric characters");
 
 var activeScripts = [
     ".github/workflows/samsung.yml", "samsung/build.py", "samsung/install.py",

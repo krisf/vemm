@@ -11,6 +11,12 @@ function Node(tag, text) {
     this.value = "";
 }
 Node.prototype.appendChild = function (child) { this.children.push(child); return child; };
+Node.prototype.insertBefore = function (child, reference) {
+    var index = this.children.indexOf(reference);
+    if (index < 0) { this.children.push(child); } else { this.children.splice(index, 0, child); }
+    return child;
+};
+Node.prototype.querySelector = function () { return null; };
 Object.defineProperty(Node.prototype, "textContent", {
     get: function () { return this.text || this.children.map(function (child) { return child.textContent; }).join(""); },
     set: function (value) { this.text = value; }

@@ -156,7 +156,10 @@
         var multipart = media.Part.length > 1;
         var tracks = resolveTracks(part, options);
         // A text subtitle the app renders itself stays selected on PMS but is never burned in.
-        var burn = tracks.subtitleId && !options.overlaySubtitle ? tracks.subtitleId : 0;
+        // Burn-in is a viewer preference: off keeps the original picture and leaves the
+        // app-rendered overlay as the only subtitle path.
+        var burn = tracks.subtitleId && !options.overlaySubtitle && options.burnSubtitles !== false ?
+            tracks.subtitleId : 0;
         var profile = options.profile;
         var range = String(media.videoDynamicRange || "");
         var dolby = /dolby|dovi/i.test(range) || streams.some(function (stream) { return stream.streamType === 1 && stream.DOVIPresent; });
@@ -245,7 +248,12 @@
                 pendingReport = null;
                 return Promise.resolve().then(function () {
                     return client.timeline(item, next.position, next.state, selection.session,
-                        settings.playQueue || null, selection.tracks);
+                        settings.playQueue || null, selection.tracks).then(function () {
+                        // UIF-P1 (TV-UIFLOWS §5): a periodic timeline save that landed lets the
+                        // player acknowledge the passive sync. The final "stopped" write keeps
+                        // its silence — the player is already leaving the screen.
+                        if (next.state !== "stopped") { emit({ type: "progress-synced", position: next.position }); }
+                    });
                 }).catch(function () {
                     emit({ type: "progress-error", message: "Plex progress could not be saved. Check the server and retry." });
                 }).then(function () {

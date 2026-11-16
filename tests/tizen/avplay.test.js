@@ -88,7 +88,10 @@ async function run() {
     native.seekTo = function (target, success) { completeSeek = success; };
     seeking = adapter.seek(50000);
     var timeoutFailure = assert.rejects(seeking, /seek-timeout/);
-    await assert.rejects(adapter.seek(10000), /already/);
+    // Coalescing: a second skip joins the in-flight chain instead of rejecting with
+    // "already in progress"; when the chain times out, every caller in the burst
+    // shares the seek-timeout outcome.
+    await assert.rejects(adapter.seek(10000), /seek-timeout/);
     await timeoutFailure;
     completeSeek();
     assert.strictEqual(adapter.snapshot().position, 0, "A timed-out seek must not later mutate the playhead");

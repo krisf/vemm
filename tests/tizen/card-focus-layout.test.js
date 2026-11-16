@@ -70,4 +70,27 @@ try {
     assert.strictEqual(w.getComputedStyle(w.document.querySelector(".screen-home")).overflowY, "hidden",
         "Home never scrolls natively; .home-track moves by transform");
 } finally { homeDom.window.close(); }
+
+// The episode row must bleed past the fixed 980px detail column to the screen edge
+// (owner report 2026-11-05: the row ended at ~55% of the screen width).
+assert(/margin-right:\s*calc\(-1 \* \(100vw - 1092px\)\)/.test(rule(".episode-row")),
+    "The episode row bleeds to the screen edge past the 980px detail column");
+assert(css.indexOf("margin-right: calc(30vw - 16px)") === -1,
+    "No narrow-screen override may shrink the episode row (Tizen 6+ TVs are all >=1280px)");
+
+// The Skip Intro / Skip Credits pill floats above the transport row at the
+// bottom-left, Plex-style (owner request 2026-11-06), instead of sitting inline.
+assert(/position:\s*absolute/.test(rule(".playback-controls .menu-control.skip-marker")),
+    "The skip pill is absolutely positioned, not inline in the transport row");
+assert(/bottom:\s*136px/.test(rule(".playback-controls .menu-control.skip-marker")),
+    "The skip pill floats above the transport controls row");
+
+// The episode-detail Back pill must be visually distinct from the secondary
+// actions. The base .detail-pill sets `border: 0`, so a border-color alone is
+// invisible (owner report 2026-11-06: the pill looked identical to the others).
+var backPillRule = rule(".detail-pill-back");
+assert(/border:\s*\d+px\s+solid/.test(backPillRule),
+    "The Back pill sets an explicit border width, not just a border-color");
+assert(/background:/.test(backPillRule),
+    "The Back pill sets its own background so it stands out from the action row");
 console.log("Tizen card/avatar focus and library poster aspect: passed");

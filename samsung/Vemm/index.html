@@ -25,6 +25,9 @@ FORM: Remote-first, neutral display identity; visual inspiration credited in THI
         </header>
         <main id="screen" class="screen"></main>
         <footer id="status" class="status" role="status" aria-live="polite"></footer>
+        <!-- Playback progress is announced on a fixed cadence; the visible status line keeps its
+             own transient messages, so the announcement gets its own polite live region. -->
+        <div id="sr-progress" class="sr-live" role="status" aria-live="polite"></div>
     </div>
     <script src="js/product.js"></script>
     <script src="js/plex-api.js"></script>

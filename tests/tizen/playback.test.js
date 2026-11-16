@@ -169,6 +169,23 @@ async function run() {
     assert(!preferredRig.calls.some(function (call) { return call[0] === "streams"; }));
     assert.deepStrictEqual(preferredSession.selection(), { audioId: 32, subtitleId: 41, explicit: false });
     await preferredSession.stop();
+    // Burn-in is a viewer preference. With it off the same subtitle track is left unburned, so
+    // the original picture can still direct play and the app renders the text itself.
+    var burnProfile = { evidence: "synthetic-profile", containers: ["mp4"], video: ["h264"],
+        audio: ["aac", "ac3", "truehd"], maxWidth: 1920, maxHeight: 1080 };
+    var burnOnPlan = playback.plan(preferred, { profile: burnProfile, quality: "original", subtitleId: 41 });
+    assert.strictEqual(burnOnPlan.reason, "subtitle", "Burn-in on keeps the subtitle transcode verdict");
+    assert.strictEqual(burnOnPlan.query.subtitleStreamID, 41);
+    assert.strictEqual(burnOnPlan.query.subtitles, "burn");
+    var burnOffPlan = playback.plan(preferred, { profile: burnProfile, quality: "original",
+        subtitleId: 41, burnSubtitles: false });
+    assert.strictEqual(burnOffPlan.reason !== "subtitle", true,
+        "Burn-in off must not force a subtitle transcode");
+    assert.strictEqual(burnOffPlan.query.subtitleStreamID, 0,
+        "Burn-in off must not ask the server to burn the selected track");
+    assert.strictEqual(burnOffPlan.query.subtitles, "none");
+    assert.strictEqual(burnOffPlan.direct, true,
+        "Burn-in off lets an otherwise eligible file direct play");
     var selectedAudio = JSON.parse(JSON.stringify(item));
     var selectedProfile = {
         evidence: "synthetic-profile", containers: ["mp4"], video: ["h264"], audio: ["aac", "ac3"],

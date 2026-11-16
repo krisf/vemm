@@ -27,12 +27,27 @@
         if (options.deck && options.continueAction === "play") { list.push({ id: "details", label: "Go to details" }); }
         if (type === "episode" && item.grandparentRatingKey) { list.push({ id: "show", label: "Go to show" }); }
         if (type === "episode" && item.parentRatingKey) { list.push({ id: "season", label: "Go to season" }); }
+        // UIFLOW3 B10 (G58): a track mirrors the episode's parent rows — artist and album
+        // by rating key, no extra request; rows without their key are simply absent.
+        if (type === "track" && item.grandparentRatingKey) { list.push({ id: "artist", label: "Go to artist" }); }
+        if (type === "track" && item.parentRatingKey) { list.push({ id: "album", label: "Go to album" }); }
+        // UIF-P3 (STATE-DIFF rank 10): queue rows join the hold menu on playable leaves —
+        // the same types playableLeaves() will enqueue. They only edit this run's local
+        // queue — never a server write, so no confirm screen. Music keeps the LG-parity
+        // card menu (the now-playing surface owns the audio queue).
+        if (leaves.indexOf(type) !== -1 && validRatingKey(item.ratingKey)) {
+            list.push({ id: "queue-next", label: "Play Next" });
+            list.push({ id: "queue-add", label: "Add to Queue" });
+        }
         if (watchable.indexOf(type) !== -1) {
             var partial = !!item.viewOffset || (item.viewedLeafCount > 0 && item.viewedLeafCount < item.leafCount);
             var watched = !!item.viewCount || (item.leafCount > 0 && item.viewedLeafCount === item.leafCount);
             if (!watched || partial) { list.push({ id: "watched", label: "Mark watched" }); }
             if (watched || partial) { list.push({ id: "unwatched", label: "Mark unwatched" }); }
         }
+        // UIF-P2: rating is available on any playable card or show, whether or not the viewer
+        // has already rated it (the panel shows the current value).
+        if (["movie", "episode", "show"].indexOf(type) !== -1) { list.push({ id: "rate", label: "Rate" }); }
         if (leaf && item.viewOffset) { list.push({ id: "start", label: "Play from beginning" }); }
         if (options.deck && (type === "movie" || type === "episode")) {
             list.push({ id: "remove", label: "Remove from Continue Watching" });
@@ -85,10 +100,13 @@
         return Promise.resolve(item);
     }
 
-    function trailerFor(item) {
-        if (!item || (item.type !== "movie" && item.type !== "show")) { return null; }
+    // UIFLOW3 A2: every valid trailer extra, in library order — the cinema-trailer chain
+    // plays up to two of them. trailerFor keeps returning the first one.
+    function trailersFor(item) {
+        if (!item || (item.type !== "movie" && item.type !== "show")) { return []; }
         var extras = item.Extras && item.Extras.Metadata;
-        if (!Array.isArray(extras)) { return null; }
+        if (!Array.isArray(extras)) { return []; }
+        var found = [];
         for (var i = 0; i < extras.length; i += 1) {
             var extra = extras[i];
             var media = extra && extra.Media && extra.Media[0];
@@ -99,11 +117,16 @@
             if (isTrailer && validRatingKey(extra.ratingKey) && typeof partKey === "string" &&
                     partKey.charAt(0) === "/" && partKey.charAt(1) !== "/" &&
                     !/[\\?#\r\n]/.test(partKey) && partKey.indexOf("..") === -1) {
-                return extra;
+                found.push(extra);
             }
         }
-        return null;
+        return found;
     }
 
-    return { rows: rows, isDeckHub: isDeckHub, playTarget: playTarget, trailerFor: trailerFor };
+    function trailerFor(item) {
+        return trailersFor(item)[0] || null;
+    }
+
+    return { rows: rows, isDeckHub: isDeckHub, playTarget: playTarget,
+        trailerFor: trailerFor, trailersFor: trailersFor };
 }));
